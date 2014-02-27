@@ -14,7 +14,7 @@ Features:
 
 Installing:
 --------
-###To use the host end script
+###To get the host end script ready for use
 Get these python packages:
 * intelhex
 * pycrypto
@@ -24,7 +24,7 @@ Get these python packages:
     sudo pip install intelhex
     sudo pip install pycrypto
 
-###To use the bootloder
+###To install the bootloder
 Build from source of use the included bootloader.hex for ATmega328p.  
 
 To build, you will need the MRBus libs.  Currently the Makefile expects them in mrbus2, so run `svn co svn://mrbus.org/mrbus/trunk/mrbus2`.  .gitignore will ignore that directory.

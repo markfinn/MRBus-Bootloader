@@ -34,7 +34,7 @@ Build from source of use the included bootloader.hex for ATmega328p.
 
 To build, you will need the MRBus libs.  Currently the Makefile expects them in mrbus2, so run `svn co svn://mrbus.org/mrbus/trunk/mrbus2`.  .gitignore will ignore that directory.
 
-Other avr parts will need some changes, feel free to submit those changes.
+Other avr parts will need some changes, feel free to submit those changes.  At a minimum you will need the CPU, frequency, BOOTSTART, and probably a new vector table.
 
 When building from source, older GCCs are not as efficient, and will not make a bootloder that is small enough.  Currently there are 154 bytes (out of 4096 available) free in the bootloder when built with gcc-avr 4.7.2-2 and avr-libc 1.8.0-3 on ubunutu 13.4, but gcc-avr 4.5.3-2 and avr-libc 1.7.1-2 on Linux Mint 12 is out of space by a lot. 
 
@@ -90,7 +90,7 @@ Signing / crypto notes
 1. Once fuses are set right, your code will be somewhat read-safe. (The AVR is not very protected according to "the net", but the bootloader won't make it worse.
 1. You are not protected from someone with an ICSP programmer writing to your node, but if you use a key and the fuses, you should be safe from an unsigned application and from all attempts to read the application from the bus.
 1. The only thing I know of that comes close to a read from the bus is the ability (through an attack) to tell if an arbitrary byte in the application is an 0xff or not.  No other reading should be possible.  I plan to store keys there.
-
+1. The key is in load.py and blvects.S for now.
 
 
 License 

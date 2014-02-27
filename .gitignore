@@ -1,0 +1,9 @@
+*~
+*.cod
+*.lst
+*.elf
+*.o
+*.pyc
+*.hex
+*.map
+mrbus2

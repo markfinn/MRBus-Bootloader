@@ -6,7 +6,7 @@
 #    Derived from MRB-AVRTEMPLATE
 
 BASE_NAME = bootloader
-MRBUSLIB = ../mrbus2/src
+MRBUSLIB = mrbus2/src
 
 # ATmega328P 20MHz @ 5.0V
 DEVICE  = atmega328p

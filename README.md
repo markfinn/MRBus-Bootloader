@@ -25,9 +25,11 @@ Get these python packages:
     sudo pip install pycrypto
 
 ###To use the bootloder
-Build from source of use the included bootloader.hex for ATmega328p.  To build, you will need the MRBus libs.
+Build from source of use the included bootloader.hex for ATmega328p.  
 
-Other parts will need some changes, feel free to submit those changes.
+To build, you will need the MRBus libs.  Currently the Makefile expects them in mrbus2, so run svn co svn://mrbus.org/mrbus/trunk/mrbus2 .  .gitignore will ignore that directory.
+
+Other avr parts will need some changes, feel free to submit those changes.
 
 When building from source, older GCCs are not as efficient, and will not make a bootloder that is small enough.  Currently there are 154 bytes (out of 4096 available) free in the bootloder when built with gcc-avr 4.7.2-2 and avr-libc 1.8.0-3 on ubunutu 13.4, but gcc-avr 4.5.3-2 and avr-libc 1.7.1-2 on Linux Mint 12 is out of space by a lot. 
 

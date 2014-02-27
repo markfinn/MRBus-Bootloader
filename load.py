@@ -249,7 +249,7 @@ if __name__ == '__main__':
 #  parser.add_argument('-k', '--key-file', type=str, help='key file to use if signing with a proprietary shared key. reads the first 16 bytes from the file.')
   parser.add_argument('-c', '--cached', nargs='*', action='append', help='cached files to use for speeding up the load. If specified with no teomplate, "mrboot_cache_*.hex" is used.')
   parser.add_argument('-s', '--save-cache', nargs='?', const='mrboot_cache_*.hex', help='save the written hex file to a cache with this name template. If specified with no teomplate, "mrboot_cache_*.hex" is used.')
-  parser.add_argument('file', type=str,  help='file to load')
+  parser.add_argument('file', nargs='?',  help='file to load')
   args = parser.parse_args()
 
   args.addr_host = intargparse(args.addr_host)
@@ -313,33 +313,35 @@ if __name__ == '__main__':
       print 'didn\'t see the node come up in bootloader mode'
       sys.exit(1)    
 
-  print 'reading current bootloader info'
-  c = bootloadseek(node)
 
-  prog = progload(args.file, maxsize = c.bootstart+1)
-  if len(prog) > c.bootstart - 18:
-    print 'program too long.  it is %d bytes but I only have space for %d on this device'%(len(prog), c.bootstart-18)
-    sys.exit(1)
+  if args.file:
+	  print 'reading current bootloader info'
+	  c = bootloadseek(node)
 
-  sig=sign(prog, key)
-  progandsig=prog+([0xff]*(c.bootstart-18 - len(prog)))+[ord(s) for s in sig]+[len(prog)&0xff, (len(prog)>>8)&0xff]
+	  prog = progload(args.file, maxsize = c.bootstart+1)
+	  if len(prog) > c.bootstart - 18:
+	    print 'program too long.  it is %d bytes but I only have space for %d on this device'%(len(prog), c.bootstart-18)
+	    sys.exit(1)
 
-  if args.cached:
-    cached = set(reduce(lambda a,b: a+b, args.cached))
-    if not cached:
-      cached = set([f for f in os.listdir('.') if f.startswith('mrboot_cache_') and f.endswith('.hex')])
-    cached = currentimagebuild(c, cached, key)
-    if cached:
-      print 'cached loading from ',cached[0]
-      c = c._replace(currentimg = cached[1])
-    else:
-      print 'failed to find matching cached file.  loading full image.'
+	  sig=sign(prog, key)
+	  progandsig=prog+([0xff]*(c.bootstart-18 - len(prog)))+[ord(s) for s in sig]+[len(prog)&0xff, (len(prog)>>8)&0xff]
 
-  if args.test_run:
-    print 'test run, would normally program here.'
-  else:
-    print 'programming'
-    bootload(c, progandsig)
+	  if args.cached:
+	    cached = set(reduce(lambda a,b: a+b, args.cached))
+	    if not cached:
+	      cached = set([f for f in os.listdir('.') if f.startswith('mrboot_cache_') and f.endswith('.hex')])
+	    cached = currentimagebuild(c, cached, key)
+	    if cached:
+	      print 'cached loading from ',cached[0]
+	      c = c._replace(currentimg = cached[1])
+	    else:
+	      print 'failed to find matching cached file.  loading full image.'
+
+	  if args.test_run:
+	    print 'test run, would normally program here.'
+	  else:
+	    print 'programming'
+	    bootload(c, progandsig)
 
   node.sendpkt(['S'])
   while True:
@@ -356,7 +358,7 @@ if __name__ == '__main__':
     print 'cant get sig at end'
     sys.exit(1)    
 
-  print 'success'
+  print 'success. signature verifies'
 
   if args.reset_when_done:
     print 'resetting to app'

@@ -21,9 +21,12 @@ Get these python packages:
 * mrbus (Not a package yet, curently lives in this repo)
 
 
+If you have pip (unbuntu package python-pip) installed, you can use:
     `sudo pip install intelhex`
     
     `sudo pip install pycrypto`
+otherwise, figure out how to get software from [pypi](https://pypi.python.org/pypi)
+
 
 ###To install the bootloder
 Build from source of use the included bootloader.hex for ATmega328p.  

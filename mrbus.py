@@ -261,12 +261,15 @@ class mrbus(object):
 
 
         
-  def scannodes(self, pkttype=ord('A'), rettype=ord('a'), wait=2):
+  def scannodes(self, pkttype=ord('A'), rettype=None, wait=2):
     targets=set()
+
+    if rettype==None:
+      rettype=ord(pkttype.lower())
 
     def pingback(p):
       if p.src!=self.mrbs.addr and p.src!=0 and p.src!=0xff and p.cmd==rettype:
-        targets.add(p.src)
+        targets.add(p)
       return False
 
     hint = self.install(pingback, 0)
@@ -292,7 +295,7 @@ def mrbus_ex(ser):
   mrb = mrbus(ser)
 #  mrb = mrbus(ser, logall=True, logfile=sys.stderr)
   nodes = mrb.scannodes()
-  print 'nodes: '+', '.join(str(n) for n in nodes)
+  print 'nodes: '+', '.join(str(n.src) for n in nodes)
 
 
 ###node example use:
@@ -301,7 +304,7 @@ def node_ex(ser):
   nodes = mrb.scannodes()
   assert nodes
 
-  n=mrb.getnode(nodes[0])
+  n=mrb.getnode(nodes[0].src)
 
   n.sendpkt(['V'])
   p=n.getpkt(timeout=3)

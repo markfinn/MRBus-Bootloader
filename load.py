@@ -288,7 +288,7 @@ if __name__ == '__main__':
     if len(nodes) > 1:
       print 'found more than one node in bootloader mode. specify an address.'
       sys.exit(1)
-    args.addr = nodes[0]
+    args.addr = nodes[0].src
 
 
 

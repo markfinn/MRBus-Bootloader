@@ -27,7 +27,7 @@ Get these python packages:
 ###To use the bootloder
 Build from source of use the included bootloader.hex for ATmega328p.  
 
-To build, you will need the MRBus libs.  Currently the Makefile expects them in mrbus2, so run svn co svn://mrbus.org/mrbus/trunk/mrbus2 .  .gitignore will ignore that directory.
+To build, you will need the MRBus libs.  Currently the Makefile expects them in mrbus2, so run `svn co svn://mrbus.org/mrbus/trunk/mrbus2`.  .gitignore will ignore that directory.
 
 Other avr parts will need some changes, feel free to submit those changes.
 

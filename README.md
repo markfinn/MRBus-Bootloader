@@ -83,9 +83,9 @@ Signing / crypto notes
 1. If you don't want it, leave the key as the default, it functions as a big CRC.
 1. A bad signature will keep the part in the bootloader instead of running the application
 2. nothing stops a rouge on you network from overwriting your application or corrupting it. They can't get it to run though without your key
-1. once fuses are set right, your code will be somewhat read-safe. (The AVR is not very protected according to "the net", but the bootloader won't make it worse
-1. you are not protected from someone with an ICSP programmer, but if you use a key and the fuses, you should be safe from an unsigned application and all reads from the bus.
-1. the only thing I know of that comes close to a read form the bus is the ability (through an attack) to tell is an arbitrary byte in the application is 0xff or not.  no other reading should be possible.  I plan to store keys there.
+1. Once fuses are set right, your code will be somewhat read-safe. (The AVR is not very protected according to "the net", but the bootloader won't make it worse.
+1. You are not protected from someone with an ICSP programmer writing to your node, but if you use a key and the fuses, you should be safe from an unsigned application and from all attempts to read the application from the bus.
+1. The only thing I know of that comes close to a read from the bus is the ability (through an attack) to tell if an arbitrary byte in the application is an 0xff or not.  No other reading should be possible.  I plan to store keys there.
 
 
 

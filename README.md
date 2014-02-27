@@ -22,9 +22,10 @@ Get these python packages:
 
 
 If you have pip (unbuntu package python-pip) installed, you can use:
-    `sudo pip install intelhex`
-    
-    `sudo pip install pycrypto`
+
+    sudo pip install intelhex
+    sudo pip install pycrypto
+
 otherwise, figure out how to get software from [pypi](https://pypi.python.org/pypi)
 
 

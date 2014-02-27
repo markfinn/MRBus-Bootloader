@@ -21,8 +21,9 @@ Get these python packages:
 * mrbus (Not a package yet, curently lives in this repo)
 
 
-    sudo pip install intelhex
-    sudo pip install pycrypto
+    `sudo pip install intelhex`
+    
+    `sudo pip install pycrypto`
 
 ###To install the bootloder
 Build from source of use the included bootloader.hex for ATmega328p.  
@@ -46,6 +47,7 @@ todo:
 * make signing less hard-coded in host script
 * update this doc and the doc in the code
 * make mrbus.py a package and submit to pypi
+* make the bootloader upgrade by bootloader wrapper application
 
 Using:
 -----

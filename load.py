@@ -167,7 +167,7 @@ def writepage(c, pageaddr, data, needStatusReset, prevdata=None):
         else:
           tosend|=set([i])
 
-  if data == c.currentimg[pageaddr: pageaddr+c.pagesize]:
+  if c.currentimg and data == c.currentimg[pageaddr: pageaddr+c.pagesize]:
     print '*',
     return
 

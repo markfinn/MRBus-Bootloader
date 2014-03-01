@@ -34,17 +34,22 @@ class node(object):
       if not self._supportsCMP:
         self.node.sendpkt([0xff, 0x00])#CMP capabilites request
         self.node.log(0, 'trying cmt start')
-        print 'trying cmt start', time.time(), self._tryStartDelay
         self._tryStartHint = self.node.installTimer(self._tryStartDelay, lambda: self._startTimerHandler()) 
         self._tryStartDelay = min(10, self._tryStartDelay*1.5)
 
 
 
-    def __init__(self, node):
+    def __init__(self, node, enableCMP):
       self.node=node
       self._supportsCMP = None #unsure at start
+      if not enableCMP:
+        self._supportsCMP = False
+      
       self._tryStartDelay = .15
-      self._startTimerHandler()
+
+      if enableCMP:
+        node.install(lambda p: self._handler(p))
+        self._startTimerHandler()
 
     def _handler(self, p):
       if p.cmd == 0xff or p.cmd == 0xfe:
@@ -55,6 +60,9 @@ class node(object):
         return True #eat packet
 
     def maxPktLen(self, timeout=0):
+      if self._supportsCMP == False:
+        return 20
+
       return 20
       
     def isSupported(self, timeout=0):
@@ -64,7 +72,7 @@ class node(object):
         timeout = 2 
 
       #return answer now if we should or can
-      if timeout == 0 or self._supportsCMP == True:
+      if timeout == 0 or self._supportsCMP != None:
         return self._supportsCMP
 
       start = time.time()
@@ -94,11 +102,7 @@ class node(object):
     self.handlern=0
     self.handlers=[]
 
-    if enableCMP:
-      self.cmp = node.CMP(self)
-      self.install(lambda p: self.cmp._handler(p))
-    else:
-      self.cmp = None
+    self.cmp = node.CMP(self, enableCMP)
 
   def __dell__(self):
     self.mrb.remove(self.hint)
@@ -324,7 +328,9 @@ class mrbus(object):
     to = self.mrbs.serial.timeout
     if timeout != None:
       timeout=max(0,timeout)
+    print 'pump a', timeout
     while timeout == None or timeout >= 0:
+      print 'pump b', timeout
       while self.timeHandlers and self.timeHandlers[-1][0] < time.time():
         timeout=-1
         h = self.timeHandlers.pop()
@@ -336,8 +342,10 @@ class mrbus(object):
           timeout -= t
       else:
         t=timeout
+      print 'pump c', t
       if t < 0:
         break
+      print 'pump d', t
       self.mrbs.serial.timeout=t
       p = self.mrbs.getpkt()
       if p:

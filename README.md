@@ -55,6 +55,7 @@ todo:
 * update this doc and the doc in the code
 * make mrbus.py a package and submit to pypi
 * make the bootloader upgrade by bootloader wrapper application
+* make bootloader and load.py use CMP for bigger packets.  remember that the CMT negotiated by the app is not valid for the bootloader
 
 Using:
 -----

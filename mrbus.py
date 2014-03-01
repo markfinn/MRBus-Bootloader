@@ -29,7 +29,53 @@ class packet(object):
     return "packet(%02xh->%02xh) %s %2d:%s"%(self.src, self.dest, c, len(self.data), ["%02xh"%d for d in self.data])
 
 class node(object):
-  def __init__(self, mrb, addr):
+  class CMP(object):
+    def _startTimerHandler(self):
+      if not self._supportsCMP:
+        self.node.sendpkt([0xff, 0x00])#CMP capabilites request
+        self.node.log(0, 'trying cmt start')
+        print 'trying cmt start', time.time(), self._tryStartDelay
+        self._tryStartHint = self.node.installTimer(self._tryStartDelay, lambda: self._startTimerHandler()) 
+        self._tryStartDelay = min(10, self._tryStartDelay*1.5)
+
+
+
+    def __init__(self, node):
+      self.node=node
+      self._supportsCMP = None #unsure at start
+      self._tryStartDelay = .15
+      self._startTimerHandler()
+
+    def _handler(self, p):
+      if p.cmd == 0xff or p.cmd == 0xfe:
+        self.node.log(0, 'cmp pkt: %s'%p)
+        self._supportsCMP = True
+        if self._tryStartHint:
+          self.removeTimer(self._tryStartHint)
+        return True #eat packet
+
+    def maxPktLen(self, timeout=0):
+      return 20
+      
+    def isSupported(self, timeout=0):
+      #can't block for something that might NEVER return
+      assert timeout != None
+      if timeout == None:
+        timeout = 2 
+
+      #return answer now if we should or can
+      if timeout == 0 or self._supportsCMP == True:
+        return self._supportsCMP
+
+      start = time.time()
+      now = start
+      while not self._supportsCMP and now-start <= timeout:
+        self.node.pump(timeout=start+timeout-now)
+        now = time.time()
+
+      return self._supportsCMP
+
+  def __init__(self, mrb, addr, enableCMP=True):
     def _handler(p):
       if p.src==self.addr and (p.dest==mrb.addr or p.dest==0xff):
         self.pktReceived = True
@@ -48,6 +94,11 @@ class node(object):
     self.handlern=0
     self.handlers=[]
 
+    if enableCMP:
+      self.cmp = node.CMP(self)
+      self.install(lambda p: self.cmp._handler(p))
+    else:
+      self.cmp = None
 
   def __dell__(self):
     self.mrb.remove(self.hint)

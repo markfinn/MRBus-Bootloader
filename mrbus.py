@@ -440,12 +440,14 @@ def node_ex(ser):
 
   n.pumpout()
   n.sendpkt(['V'])
-  #print node.getfilteredpkt(lambda p: p.cmd==ord('v'), duration=2).data
+  #or this: print node.getfilteredpkt(lambda p: p.cmd==ord('v'), duration=2).data
   print node.gettypefilteredpktdata('v')
   if p:
     print p
   else:
     print 'no packet returned'
+
+  #or this: d = n.doUntilReply(['V'])
 
 
 ###mrbusSimple example use:

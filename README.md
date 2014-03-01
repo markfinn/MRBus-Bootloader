@@ -47,6 +47,7 @@ Third party code used
 
 todo: 
 -----
+* remove timeout from pump. then make load.py actually an event driven state machine
 * use load plan to speed up rewriting more
 * settle fuses
 * make code / Makefile easier to set up for other parts

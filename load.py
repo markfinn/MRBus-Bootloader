@@ -43,42 +43,42 @@ def sign(m, key):
     
     
 def bootloadseek(node):
-  def pollnode(node, pkttype, count=3, wait=1, delay=.2):
-    reply = set()
-    replycount=0
-    t=time.time()
-    n=0
-    while time.time()-t < wait+count*delay:
-      x=(time.time()-t)/delay
-      if n < count and x > n:
-        node.sendpkt([pkttype])
-        n+=1
-      tn=time.time()
-      to=min(wait+count*delay+t-tn, n*delay+t-tn)
-      p = node.getpkt(timeout=to)
-      if p:
-        reply.add(p)
-        replycount+=1
-
-    if replycount == 0:
-      print >> sys.stderr, 'failed to find node %02xh with command %02xh'%(node.addr, ord(pkttype))
-      return None
-    if replycount > count:
-      print >> sys.stderr, 'too many replies to find node %02xh with command %02xh. This might be due to bus dups, or there might be two nodes with the same address.  I\'m not risking it. Dying.'%(node.addr, ord(pkttype))
-      return None
-    if len(reply) > 1:
-      print >> sys.stderr, 'too many unique replies to find node %02xh with command %02xh. This almost certainly means there are two nodes with the same address.  Dying.'%(node.addr, ord(pkttype))
-      return None
-    return reply.pop()
-
-
   #make sure the node replies, but only once.
-  loaderstatus = pollnode(node, '!', count=1, wait=0)
-  if None == loaderstatus: sys.exit(1)
-  loaderversion = pollnode(node, 'V', count=1, wait=0)
-  if None == loaderversion: sys.exit(1)
-  loadersig = pollnode(node, 'S', count=3, wait=.5, delay=.1)
-  if None == loadersig: sys.exit(1)
+  reply = {}
+  def h(p):
+    if p.cmd in [ord('@'), ord('v'), ord('s')]:
+      if p.cmd in reply:
+        l = reply[p.cmd]
+      else:
+        l=[]
+        reply[p.cmd] = l
+      l.append(p)
+      return True
+
+  hint = node.install(h)
+
+  for i in xrange(3):
+    for c in '!VS':
+      node.sendpkt([c])
+      node.pump(duration=.15)
+
+  node.pump(duration=.5, eager=True)
+  node.remove(hint)
+
+  for t,l in reply.iteritems():
+    if len(l) == 0:
+      print >> sys.stderr, 'failed to find node %02xh with command %02xh'%(node.addr, ord(t))
+      return None
+    if len(l) > 3:
+      print >> sys.stderr, 'too many replies to find node %02xh with command %02xh. This might be due to bus dups, or there might be two nodes with the same address.  I\'m not risking it. Dying.'%(node.addr, ord(t))
+      return None
+    if len(set(l)) > 1:
+      print >> sys.stderr, 'too many unique replies to find node %02xh with command %02xh. This almost certainly means there are two nodes with the same address.  Dying.'%(node.addr, ord(t))
+      return None
+
+  loaderstatus = reply[ord('@')][0]
+  loaderversion = reply[ord('v')][0]
+  loadersig = reply[ord('s')][0]
 
   if loaderversion.data[0] != 0x21:
     print >> sys.stderr, 'version weirdness..  Dying.'
@@ -111,27 +111,11 @@ def writepage(c, pageaddr, data, needStatusReset, prevdata=None):
   #print'writepage', pageaddr
   
   def dountillreply(cmd, rep=None, to=5):
-    #print 'dountillreply', cmd, rep, to
-    if rep==None:
-      rep=ord(cmd[0].lower())
-    c.node.sendpkt(cmd)
-    start=time.time()
-    sent=1
-    now=start
-    while True:
-      p = c.node.getpkt(timeout=max(0, start+min(sent, to)-now))
-      now=time.time()
-      if p and p.cmd==rep:
-        #print p
-        return p
-      elif start+to <= now:
-        print 'giving up'
-        sys.exit(1)
-      elif start+sent-now > 0:
-        print 'timeout->retry ',
-        c.node.sendpkt(cmd)
-        sent+=1
-
+    r = c.node.doUntilReply(cmd, rep, delay=.5, timeout=5)
+    if None == r:
+      print 'giving up'
+      sys.exit(1)
+    return r
 
   def senddata(data):
     z=data[0]
@@ -158,9 +142,9 @@ def writepage(c, pageaddr, data, needStatusReset, prevdata=None):
       d+=[0]*(12-len(d))
       c.node.sendpkt(['D']+d+[i, stat])
       if stat:
-        p = c.node.getpkt(timeout=2)
-        if p:
-          failed=set((p.data[0]*8+k for k in xrange(8) if p.data[0]*8+k < (c.pagesize+11)//12 and p.data[1]&(1<<k)==0))
+        d = c.node.gettypefilteredpktdata(ord('@'), duration=2)
+        if d:
+          failed=set((d[0]*8+k for k in xrange(8) if d[0]*8+k < (c.pagesize+11)//12 and d[1]&(1<<k)==0))
           tosend|=failed
           if failed:
             print 'failed, retry:', failed
@@ -238,12 +222,12 @@ def intargparse(arg):
 if __name__ == '__main__':
   key='MRBusBootLoader\x00'
   parser = argparse.ArgumentParser(description='program an mrbus node via the bootloader')
-  parser.add_argument('-p', '--port', type=str,help='port for mrbus CI2 interface. Will guess /dev/ttyUSB? if not specified')
+  parser.add_argument('-p', '--port', help='port for mrbus CI2 interface. Will guess /dev/ttyUSB? if not specified')
   parser.add_argument('-a', '--addr-host', help='mrbus address to use for host.  Will scan for an unused address if not specified')
   parser.add_argument('-d', '--addr', default=None, help='mrbus address of node to program.  Will scan for a singular node in bootloader mode if not specified')
-  parser.add_argument('-x', '--reset-to-bootloader', action='store_true', help='send the target node a reset (\'X\') command then to attempt to enter the bootloader. Implies -l')
+  parser.add_argument('-x', '--reset-to-bootloader', action='store_true', help='send the target node a reset (\'X\') command then to attempt to enter the bootloader. Implies -l 5')
   parser.add_argument('-t', '--test-run', action='store_true', help='test run, Don\'t actually program. still resets, commands, boots, waits, etc, just no actual program step.')
-  parser.add_argument('-l', '--listen-for-bootloader', action='store_true', help='wait for the node to send a bootloader-waiting packet, then halt the normal boot processs in bootloader mode')
+  parser.add_argument('-l', '--listen-for-bootloader', type=int, nargs='?', const=None, default=False, help='wait for the node to send a bootloader-waiting packet, then halt the normal boot processs in bootloader mode. Optional timeout, waits forever by default')
   parser.add_argument('-r', '--reset-when-done', action='store_true', help='reset the target after we are finished')
 #  parser.add_argument('-s', '--force-sign', action='store_true', help='sign the object even if it seems to have a signature')
 #  parser.add_argument('-k', '--key-file', type=str, help='key file to use if signing with a proprietary shared key. reads the first 16 bytes from the file.')
@@ -296,20 +280,14 @@ if __name__ == '__main__':
   node = mrb.getnode(args.addr)
 
   if args.reset_to_bootloader:
-    args.listen_for_bootloader=True
+    args.listen_for_bootloader=5
     print 'sending reset to get in bootloader mode'
     node.sendpkt(['X'])
 
-  if args.listen_for_bootloader:
+  if args.listen_for_bootloader != False:
     print 'waiting for bootloader announce'
-    t=time.time()
-    p=None
-    while time.time()-t < 100:
-      tn=time.time()
-      p = node.getpkt(timeout=100+t-time.time())
-      if p and p.cmd==0x40:
-        break
-    else:
+    p = node.gettypefilteredpktdata(0x40, duration=args.listen_for_bootloader)
+    if not p:
       print 'didn\'t see the node come up in bootloader mode'
       sys.exit(1)    
 
@@ -343,20 +321,16 @@ if __name__ == '__main__':
 	    print 'programming'
 	    bootload(c, progandsig)
 
-  node.sendpkt(['S'])
-  while True:
-    p = node.getpkt(timeout=1)
-    if p and p.cmd==ord('s'):
-      if p.data[0] != 0:
-        print 'signature doesn\'t verify.'
-        print p
-        sys.exit(1)
-      break
-    elif p==None:
-      node.sendpkt(['S'])
-  else:
+  node.pumpout()
+  d = node.doUntilReply(['S'], delay=.5, timeout=3)
+  if not d:
     print 'cant get sig at end'
     sys.exit(1)    
+  
+  if d[0] != 0:
+    print 'signature doesn\'t verify.'
+    print d
+    sys.exit(1)
 
   print 'success. signature verifies'
 

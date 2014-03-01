@@ -1,3 +1,4 @@
+from __future__ import division
 import serial
 import time
 from collections import deque
@@ -75,29 +76,21 @@ class node(object):
       if timeout == 0 or self._supportsCMP != None:
         return self._supportsCMP
 
-      start = time.time()
-      now = start
-      while not self._supportsCMP and now-start <= timeout:
-        self.node.pump(timeout=start+timeout-now)
-        now = time.time()
+      self.node.pump(until=lambda:self._supportsCMP, duration=timeout)
 
       return self._supportsCMP
 
   def __init__(self, mrb, addr, enableCMP=True):
     def _handler(p):
       if p.src==self.addr and (p.dest==mrb.addr or p.dest==0xff):
-        self.pktReceived = True
         for hint,h in self.handlers:
           if h(p):
             break
-        else:
-          self.pkts.append(p)
         return True #eat packet
 
     self.mrb=mrb
     self.addr=addr
-    self.pkts=deque()
-    self.hint=mrb.install(_handler, -1)
+    self.hint=mrb.install(_handler)
 
     self.handlern=0
     self.handlers=[]
@@ -112,7 +105,6 @@ class node(object):
 
   def install(self, handler, where=-1):
     #interpret index differently than list.insert().  -1 is at end, 0 is at front
-    self.log(0, "install handler")
     if where<0:
       if where == -1:
         where = len(self.handlers)
@@ -120,11 +112,13 @@ class node(object):
         where+=1
 
     hint=self.handlern
+    self.log(0, "install handler %d:%s"%(hint,handler))
     self.handlern+=1
     self.handlers.insert(where, (hint, handler))
+    return hint
 
   def remove(self, hint):
-    self.log(0, "remove handler")
+    self.log(0, "remove handler %d"%hint)
     self.handlers = [h for h in self.handlers if h[0]!=hint]
 
   def installTimer(self, when, handler, absolute=False):
@@ -140,31 +134,45 @@ class node(object):
   def sendpkt(self, data):
     self.mrb.sendpkt(self.addr, data)
 
-  def pump(self, timeout=None):
-    if timeout != None:
-      timeout=max(0,timeout)
-    start = time.time()
-    now = start
-    self.pktReceived = False
-    while not self.pktReceived and (timeout == None or now-start <=timeout):
-      self.mrb.pump(timeout=start+timeout-now)
-      now = time.time()
+  def getfilteredpkt(self, f, duration=None, until=None):
+    pkt=[None]
+    def h(p):
+      if f(p):
+        pkt[0]=p
+        return True
 
-  def getpkt(self, timeout=None):
-    if timeout==None:
-      while len(self.pkts) == 0:
-        self.pump(timeout=None)
-    else:
-      start = time.time()
-      now = start
-      while now - start <= timeout and len(self.pkts)==0:
-        self.pump(timeout=start + timeout - now)
-        now = time.time()
+    def u():
+      return pkt[0]!=None or until != None and until()
+      
+    hint = self.install(h)
+    self.pump(duration, u)
+    self.remove(hint)
+    return pkt[0]
 
-    if len(self.pkts) == 0:
-      return None
-    return self.pkts.popleft()
+  def gettypefilteredpktdata(self, t, duration=None):
+    if type(t) == str:
+      t=ord(t)
+    p=self.getfilteredpkt(lambda p: p.cmd==t, duration=duration)
+    if p:
+      return p.data
+    return None
 
+  def doUntilReply(self, cmd, rep=None, delay=.5, timeout=5):
+    if rep==None:
+      rep=ord(cmd[0].lower())
+    for i in xrange(1 + int(timeout//delay)):
+      self.sendpkt(cmd)
+      d = self.gettypefilteredpktdata(rep, duration=delay)
+      if d != None:
+        return d
+    return None
+
+
+  def pump(self, duration=None, until=None, eager=False):
+    self.mrb.pump(duration, until, eager)
+
+  def pumpout(self):
+    self.mrb.pumpout()
 
 
 class mrbusSimple(object):
@@ -228,18 +236,18 @@ class mrbusSimple(object):
       return None
     if l[-1] != '\n' and l[-1] != '\r':
       self.log(1, '<<<'+l)
-      return None
+      return False
     l2=l.strip()
     if l2 == 'Ok':
       self.log(0, '<<<'+l)
-      return None
+      return False
     if len(l2)<2 or l2[0]!='P' or l2[1]!=':':
       self.log(1, '<<<'+l)
-      return None
+      return False
     d=[int(v,16) for v in l2[2:].split()]
     if len(d)<6 or len(d)!=d[2]:
       self.log(1, '<<<'+l)
-      return None
+      return False
     self.log(0, '<<<'+l)
     return packet(d[0], d[1], d[5], d[6:])
 
@@ -268,8 +276,12 @@ class mrbus(object):
     self.handlers=[]
     self.timeHandlers = []
 
+    self.kill=False
+
     self.mrbs.log(0, "instantiated mrbus from %s"%port.name)
 
+    self.pumpout()
+    
     #find an address to use
     if addr==None:
       self.mrbs.log(0, "finding address to use")
@@ -295,7 +307,6 @@ class mrbus(object):
 
   def install(self, handler, where=-1):
     #interpret index differently than list.insert().  -1 is at end, 0 is at front
-    self.mrbs.log(0, "install handler")
     if where<0:
       if where == -1:
         where = len(self.handlers)
@@ -303,11 +314,12 @@ class mrbus(object):
         where+=1
 
     hint=self.handlern
+    self.mrbs.log(0, "install handler %d:%s"%(hint,handler))
     self.handlern+=1
     self.handlers.insert(where, (hint, handler))
 
   def remove(self, hint):
-    self.mrbs.log(0, "remove handler")
+    self.mrbs.log(0, "remove handler %d", hint)
     self.handlers = [h for h in self.handlers if h[0]!=hint]
 
   def installTimer(self, when, handler, absolute=False):
@@ -323,37 +335,32 @@ class mrbus(object):
     self.mrbs.log(0, "remove timer")
     self.timeHandlers = [h for h in self.timeHandlers if h[1]!=hint]
 
-  def pump(self, timeout=None):
-    done=False
-    to = self.mrbs.serial.timeout
-    if timeout != None:
-      timeout=max(0,timeout)
-    print 'pump a', timeout
-    while timeout == None or timeout >= 0:
-      print 'pump b', timeout
-      while self.timeHandlers and self.timeHandlers[-1][0] < time.time():
-        timeout=-1
+  def pump(self, duration=None, until=None, eager=False):
+    start = time.time()
+    now = start
+    while eager or not self.kill and (duration==None or duration+start > now) and (until==None or not until()):
+      while self.timeHandlers and self.timeHandlers[-1][0] <= now:
         h = self.timeHandlers.pop()
         h[2]()
+        now = time.time()
       if self.timeHandlers:
-        t = max(0, self.timeHandlers[-1][0] - time.time())
-        if timeout == None or t < timeout:
-          self.mrbs.serial.timeout = t
-          timeout -= t
+        to = self.timeHandlers[-1][0] - now
       else:
-        t=timeout
-      print 'pump c', t
-      if t < 0:
-        break
-      print 'pump d', t
-      self.mrbs.serial.timeout=t
+        to = .1
+      if duration != None:
+        to=min(to,max(0,duration+start-now))
+      self.mrbs.serial.timeout = to
       p = self.mrbs.getpkt()
       if p:
-        timeout=-1
         for hint,h in self.handlers:
           if h(p):
             break
-    self.mrbs.serial.timeout=to
+      elif p==None:
+        eager=False
+      now = time.time()
+
+  def pumpout(self):
+    self.pump(duration=0, eager=True)
 
   def testnode(self, addr, replyto=None, wait=2):
     found=False
@@ -431,8 +438,10 @@ def node_ex(ser):
 
   n=mrb.getnode(nodes[0].src)
 
+  n.pumpout()
   n.sendpkt(['V'])
-  p=n.getpkt(timeout=3)
+  #print node.getfilteredpkt(lambda p: p.cmd==ord('v'), duration=2).data
+  print node.gettypefilteredpktdata('v')
   if p:
     print p
   else:
@@ -440,6 +449,7 @@ def node_ex(ser):
 
 
 ###mrbusSimple example use:
+#might be out of date from event loop updates
 def mrbussimple_ex(ser):
   addr=0
   mrbs = mrbusSimple(ser, addr)

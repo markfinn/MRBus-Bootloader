@@ -57,7 +57,7 @@ class node(object):
         self.node.log(0, 'cmp pkt: %s'%p)
         self._supportsCMP = True
         if self._tryStartHint:
-          self.removeTimer(self._tryStartHint)
+          self.node.removeTimer(self._tryStartHint)
         return True #eat packet
 
     def maxPktLen(self, timeout=0):
@@ -317,9 +317,10 @@ class mrbus(object):
     self.mrbs.log(0, "install handler %d:%s"%(hint,handler))
     self.handlern+=1
     self.handlers.insert(where, (hint, handler))
+    return hint
 
   def remove(self, hint):
-    self.mrbs.log(0, "remove handler %d", hint)
+    self.mrbs.log(0, "remove handler %s"%hint)
     self.handlers = [h for h in self.handlers if h[0]!=hint]
 
   def installTimer(self, when, handler, absolute=False):
@@ -330,6 +331,7 @@ class mrbus(object):
     self.handlern+=1
     self.timeHandlers.append((when, hint, handler))
     self.timeHandlers.sort(reverse=True)
+    return hint
 
   def removeTimer(self, hint):
     self.mrbs.log(0, "remove timer")

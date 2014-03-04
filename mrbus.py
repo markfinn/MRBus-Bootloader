@@ -203,6 +203,15 @@ class mrbusSimple(object):
     self.addr=addr
 #    self.buf=deque()
 
+  def setTimeout(self, to):
+    self.serial.timeout = to
+
+  def time(self):
+    return time.time()
+
+  def sleep(self, t):
+    time.sleep(t)
+
 
   def log(self, error, msg):
     if not self.logfile:
@@ -266,10 +275,14 @@ class mrbusSimple(object):
 
 class mrbus(object):
   def __init__(self, port, addr=None, logfile=None, logall=False, extra=False):
+
     if type(port)==str:
       port = serial.Serial(port, 115200, rtscts=True)
 
-    self.mrbs = mrbusSimple(port, addr, logfile, logall, extra)
+    if type(port)==serial.Serial:
+      self.mrbs = mrbusSimple(port, addr, logfile, logall, extra)
+    else:
+      self.mrbs = port
 
     self.pktlst=[]
     self.handlern=0
@@ -325,7 +338,7 @@ class mrbus(object):
 
   def installTimer(self, when, handler, absolute=False):
     if not absolute:
-      when += time.time()
+      when += self.mrbs.time()
     self.mrbs.log(0, "install timer for %s"%when)
     hint=self.handlern
     self.handlern+=1
@@ -338,20 +351,20 @@ class mrbus(object):
     self.timeHandlers = [h for h in self.timeHandlers if h[1]!=hint]
 
   def pump(self, duration=None, until=None, eager=False):
-    start = time.time()
+    start = self.mrbs.time()
     now = start
     while eager or not self.kill and (duration==None or duration+start > now) and (until==None or not until()):
       while self.timeHandlers and self.timeHandlers[-1][0] <= now:
         h = self.timeHandlers.pop()
         h[2]()
-        now = time.time()
+        now = self.mrbs.time()
       if self.timeHandlers:
         to = self.timeHandlers[-1][0] - now
       else:
         to = .1
       if duration != None:
         to=min(to,max(0,duration+start-now))
-      self.mrbs.serial.timeout = to
+      self.mrbs.setTimeout(to)
       p = self.mrbs.getpkt()
       if p:
         for hint,h in self.handlers:
@@ -359,7 +372,7 @@ class mrbus(object):
             break
       elif p==None:
         eager=False
-      now = time.time()
+      now = self.mrbs.time()
 
   def pumpout(self):
     self.pump(duration=0, eager=True)
@@ -379,14 +392,14 @@ class mrbus(object):
 
     hint = self.install(pingback, 0)
 
-    t=time.time()
+    t=self.mrbs.time()
     n=0
-    while time.time()-t < wait and not found:
-      x=(time.time()-t)/.2
+    while self.mrbs.time()-t < wait and not found:
+      x=(self.mrbs.time()-t)/.2
       if x > n:
         self.sendpkt(addr, ['A'], src=replyto)
         n+=1
-      tn=time.time()
+      tn=self.mrbs.time()
       to=min(wait+t-tn, n*.2+t-tn)
       self.pump(to)
 
@@ -408,14 +421,14 @@ class mrbus(object):
 
     hint = self.install(pingback, 0)
 
-    t=time.time()
+    t=self.mrbs.time()
     n=0
-    while time.time()-t < wait:
-      x=(time.time()-t)/.3
+    while self.mrbs.time()-t < wait:
+      x=(self.mrbs.time()-t)/.3
       if x > n:
         self.sendpkt(0xff, [pkttype])
         n+=1
-      tn=time.time()
+      tn=self.mrbs.time()
       to=min(wait+t-tn, n*.3+t-tn)
       self.pump(to)
 
@@ -458,10 +471,10 @@ def mrbussimple_ex(ser):
   addr=0
   mrbs = mrbusSimple(ser, addr)
 #  mrbs = mrbusSimple(ser, logall=True, logfile=sys.stderr)
-  t=time.time()
-  while time.time()-t < 3:
+  t=mrbs.time()
+  while mrbs.time()-t < 3:
     mrbs.sendpkt(0xff, ['A'])
-    time.sleep(.3)
+    mrbs.sleep(.3)
     while 1:
       p = mrbs.getpkt()
       if p==None:

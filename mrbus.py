@@ -49,8 +49,14 @@ class node(object):
       self._tryStartDelay = .15
 
       if enableCMP:
-        node.install(lambda p: self._handler(p))
+        self.hint = node.install(lambda p: self._handler(p))
         self._startTimerHandler()
+      else:
+        self.hint = None
+
+    def __dell__(self):
+      if self.hint:
+        self.node.remove(self.hint)
 
     def _handler(self, p):
       if p.cmd == 0xff or p.cmd == 0xfe:

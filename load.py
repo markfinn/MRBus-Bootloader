@@ -233,6 +233,7 @@ if __name__ == '__main__':
 #  parser.add_argument('-k', '--key-file', type=str, help='key file to use if signing with a proprietary shared key. reads the first 16 bytes from the file.')
   parser.add_argument('-c', '--cached', nargs='*', action='append', help='cached files to use for speeding up the load. If specified with no teomplate, "mrboot_cache_*.hex" is used.')
   parser.add_argument('-s', '--save-cache', nargs='?', const='mrboot_cache_*.hex', help='save the written hex file to a cache with this name template. If specified with no teomplate, "mrboot_cache_*.hex" is used.')
+  parser.add_argument('-v', '--verbose', action='store_true', help='verbose')
   parser.add_argument('file', nargs='?',  help='file to load')
   args = parser.parse_args()
 
@@ -254,7 +255,10 @@ if __name__ == '__main__':
       sys.exit(1)
     args.port='/dev/'+args.port[0]
   
-  mrb = mrbus.mrbus(args.port, addr=args.addr_host)#, logall=True, logfile=sys.stdout, extra=True)
+  if args.verbose:
+    mrb = mrbus.mrbus(args.port, addr=args.addr_host, logall=True, logfile=sys.stdout, extra=True)
+  else:
+    mrb = mrbus.mrbus(args.port, addr=args.addr_host)
 
   def debughandler(p):
     if p.cmd==ord('*'):

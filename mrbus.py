@@ -207,8 +207,7 @@ class mrbusSimple(object):
     self.log(0, "instantiated mrbusSimple from %s"%port.name)
 
     self.addr=addr
-    self.linebuf=deque()
-    self.linebuf.append('')
+#    self.buf=deque()
 
   def setTimeout(self, to):
     self.serial.timeout = to
@@ -231,39 +230,23 @@ class mrbusSimple(object):
       s="  log:"
     self.logfile.write(s+repr(msg)+'\n')
 
-#newer system (ubuntu 13.04 seems to stall on readline, so I write my own.)
-  def readline(self):
-    def fillbuf(to=None):
-      save = self.serial.timeout
-      self.serial.timeout = to
-      r=self.serial.read(min(1, self.serial.inWaiting()))
-      rs=r.split('\n\r')
-      if rs:
-        self.linebuf[-1]+=rs[0]
-        self.linebuf.extend(rs[1:])
-      if r and r[-1] == '\n':
-        self.linebuf.append('')
-      self.serial.timeout = save
-
-    if self.serial.timeout == None: 
-      while len(self.linebuf) < 2:
-        fillbuf()
-    else:
-      start=self.time()
-      left=self.serial.timeout
-      end=start+left
-      while len(self.linebuf) < 2:
-        fillbuf(left)
-        if len(self.linebuf) >= 2:
-          break
-        left = end-self.time()
-        if left<=0:
-          return None
-    return self.linebuf.popleft()+'\n'
+#needs timeout functionality
+#  def readline(self)
+#    while not self.linebuf():
+#      r=self.serial.read(max(1, self.serial.inWaiting()))
+#      while '\n' in r:
+#        i = r.index('\n')
+#        self.linebuf.append(list(self.linecbuf)+r[:i+1]        
+#        self.linecbuf=deque()
+#        r=r[i+1:]
+#      if r:
+#        self.linecbuf.extend(r)
+#    return self.linebuf.leftpop()
 
 
   def getpkt(self):
-    l = self.readline()
+    l = self.serial.readline()
+#      self.readline()
     if not l:
       return None
     if l[-1] != '\n' and l[-1] != '\r':

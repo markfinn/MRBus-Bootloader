@@ -41,7 +41,6 @@ LICENSE:
 #include <avr/signature.h>
 
 
-#define initpins PORTB = PORTC = PORTD = 0xff;
 
 
 #define BOOTLOADERVER 2
@@ -191,7 +190,10 @@ MRBusPacket mrbusRxPktBufferArray[MRBUS_RX_BUFFER_DEPTH];
 int main(void)
 {
 
-	initpins;
+//set pins to input with pull ups. safest combo for unknown hardware.
+	MCUCR=0;
+	PORTB = PORTC = PORTD = 0xff;
+	DDRB = DDRC = DDRD = 0;
 
 
 	// Application initialization

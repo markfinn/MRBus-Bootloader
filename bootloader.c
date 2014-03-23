@@ -332,7 +332,7 @@ int main(void)
 					
 				// ERASE buf markers
 				for(i=0; i<LOADERSTATBYTES; i++)
-			  	loaderstatus[i]=0;
+					loaderstatus[i]=0;
 				txBuffer[MRBUS_PKT_TYPE] = 'f';
 				if (rxBuffer[MRBUS_PKT_LEN]== 7)
 				{

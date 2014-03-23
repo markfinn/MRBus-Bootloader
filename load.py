@@ -100,10 +100,23 @@ def bootloadseek(node):
 
   return c
   
+def updatestatus(n, c, staticscrbuf=['']):
+  scrbuf = staticscrbuf[0]
+  if len(scrbuf)==n:
+    sys.stdout.write(c)
+    scrbuf+=c
+  elif len(scrbuf)<n:
+    new=' '*(n-len(scrbuf))+c
+    sys.stdout.write(new)
+    scrbuf+=new
+  else:
+    new=c+scrbuf[n+1:]
+#    sys.stdout.write('\x08'*len(new)+new)
+    sys.stdout.write('\r'+scrbuf[:n]+c)
+    scrbuf=scrbuf[:n]+new
+  staticscrbuf[0] = scrbuf
 
-
-def writepage(c, pageaddr, data, needStatusReset, prevdata=None):
-  #print'writepage', pageaddr
+def writepage(c, pagenum, data, needStatusReset, image, prevdata=None):
   
   def dountillreply(cmd, rep=None, to=5):
     r = c.node.doUntilReply(cmd, rep, delay=.5, timeout=5)
@@ -112,23 +125,18 @@ def writepage(c, pageaddr, data, needStatusReset, prevdata=None):
       sys.exit(1)
     return r
 
-  def senddata(data):
-    z=data[0]
-    for x in data:
-      if x!=z:
-        break
-    else:
-      if z==0xff:
-        print '-',
-      else:
-        print 'c',
-      dountillreply(['F', z])
-      return
+  def flashbuf():
+    dountillreply(['#', pagenum*c.pagesize, (pagenum*c.pagesize)>>8], rep=ord('$'))
+
+
+  def senddata(n, data, prevdata, image):
+
 
     if needStatusReset:
       dountillreply(['F', 0])
+      prevdata=[0]*len(data)
         
-    print 'd',
+    updatestatus(n, 'd')
     tosend=set(xrange((c.pagesize+11)//12))
     while tosend:
       i=tosend.pop()
@@ -146,28 +154,69 @@ def writepage(c, pageaddr, data, needStatusReset, prevdata=None):
         else:
           tosend|=set([i])
 
-  if c.currentimg and data == c.currentimg[pageaddr: pageaddr+c.pagesize]:
-    print '*',
+  if image and data == c.currentimg[pagenum*c.pagesize: (pagenum+1)*c.pagesize]:
+    updatestatus(pagenum, '*')
     return
 
-  if prevdata==data:
-    print 'r',
-#  elif :
+  z=data[0]
+  for x in data:
+    if x!=z:
+      break
   else:
-    senddata(data)
+    if z==0xff:
+      updatestatus(pagenum, '-')
+    else:
+      updatestatus(pagenum, 'f')
+    dountillreply(['F', z])
+    flashbuf()
+    return
 
-  dountillreply(['#', pageaddr, pageaddr>>8], rep=ord('$'))
+  if (pagenum+1)*c.pagesize<=c.bootstart-18:#can't copy to the sig or len.  bootloader will not allow it
+    for i in xrange(len(image)-len(data)+1):
+      if data == image[i:i+len(data)]:
+        updatestatus(pagenum, 'c')
+        dountillreply(['F', i, i>>8, c.pagesize, 0])
+        flashbuf()
+        return
+
+  if prevdata==data:
+    updatestatus(pagenum, 'r')
+    flashbuf()
+    return
+
+  senddata(pagenum, data, prevdata, image)
+  flashbuf()
+  return
 
 
+class Copyplan(object):
+  def __init__(self, p, d, c):
+    self.p=p
+    self.d=d
+    self.client=c
+  @property
+  def data(self):
+    return self.d
+
+def plansort(pages):
+  pass
   
 def bootload(c, prog):
-
-  oldData=None
+  sendbuffer=None
+  image = c.currentimg
   StatusIsZero = c.rawloaderstatus.data==[0,0]
-  for page in xrange(0//c.pagesize, (len(prog)+c.pagesize-1)//c.pagesize):
-    data=prog[page*c.pagesize: (page+1)*c.pagesize]
-    writepage(c, page*c.pagesize, data, not StatusIsZero, oldData)
-    oldData=data
+  pages = []
+  for p in xrange(0//c.pagesize, (len(prog)+c.pagesize-1)//c.pagesize):
+    data=prog[p*c.pagesize: (p+1)*c.pagesize]
+    if image and data == c.currentimg[p*c.pagesize: (p+1)*c.pagesize]:
+      updatestatus(p, '*')
+    else:
+      pages.append((p, Copyplan(p, data, c)))
+  plansort(pages)
+  for page,copyplan in pages:
+    writepage(c, page, copyplan.data, not StatusIsZero, image, sendbuffer)
+    sendbuffer=copyplan.data
+    image[page*c.pagesize: (page+1)*c.pagesize]=copyplan.data
     StatusIsZero=True #writing a page zeros the status
     sys.stdout.flush()
 

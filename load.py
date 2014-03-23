@@ -44,15 +44,10 @@ def sign(m, key):
     
 def bootloadseek(node):
   #make sure the node replies, but only once.
-  reply = {}
+  reply = {ord('@'):[], ord('v'):[], ord('s'):[]}
   def h(p):
     if p.cmd in [ord('@'), ord('v'), ord('s')]:
-      if p.cmd in reply:
-        l = reply[p.cmd]
-      else:
-        l=[]
-        reply[p.cmd] = l
-      l.append(p)
+      reply[p.cmd].append(p)
       return True
 
   hint = node.install(h)
@@ -67,13 +62,13 @@ def bootloadseek(node):
 
   for t,l in reply.iteritems():
     if len(l) == 0:
-      print >> sys.stderr, 'failed to find node %02xh with command %02xh'%(node.addr, ord(t))
+      print >> sys.stderr, 'failed to find node %02xh with command %02xh'%(node.addr, t)
       return None
     if len(l) > 3:
-      print >> sys.stderr, 'too many replies to find node %02xh with command %02xh. This might be due to bus dups, or there might be two nodes with the same address.  I\'m not risking it. Dying.'%(node.addr, ord(t))
+      print >> sys.stderr, 'too many replies to find node %02xh with command %02xh. This might be due to bus dups, or there might be two nodes with the same address.  I\'m not risking it. Dying.'%(node.addr, t)
       return None
     if len(set(l)) > 1:
-      print >> sys.stderr, 'too many unique replies to find node %02xh with command %02xh. This almost certainly means there are two nodes with the same address.  Dying.'%(node.addr, ord(t))
+      print >> sys.stderr, 'too many unique replies to find node %02xh with command %02xh. This almost certainly means there are two nodes with the same address.  Dying.'%(node.addr, t)
       return None
 
   loaderstatus = reply[ord('@')][0]
@@ -297,33 +292,35 @@ if __name__ == '__main__':
 
 
   if args.file:
-	  print 'reading current bootloader info'
-	  c = bootloadseek(node)
+    print 'reading current bootloader info'
+    c = bootloadseek(node)
+    if None==c:
+      sys.exit(1)
 
-	  prog = progload(args.file, maxsize = c.bootstart+1)
-	  if len(prog) > c.bootstart - 18:
-	    print 'program too long.  it is %d bytes but I only have space for %d on this device'%(len(prog), c.bootstart-18)
-	    sys.exit(1)
+    prog = progload(args.file, maxsize = c.bootstart+1)
+    if len(prog) > c.bootstart - 18:
+      print 'program too long.  it is %d bytes but I only have space for %d on this device'%(len(prog), c.bootstart-18)
+      sys.exit(1)
 
-	  sig=sign(prog, key)
-	  progandsig=prog+([0xff]*(c.bootstart-18 - len(prog)))+[ord(s) for s in sig]+[len(prog)&0xff, (len(prog)>>8)&0xff]
+    sig=sign(prog, key)
+    progandsig=prog+([0xff]*(c.bootstart-18 - len(prog)))+[ord(s) for s in sig]+[len(prog)&0xff, (len(prog)>>8)&0xff]
 
-	  if args.cached:
-	    cached = set(reduce(lambda a,b: a+b, args.cached))
-	    if not cached:
-	      cached = set([f for f in os.listdir('.') if f.startswith('mrboot_cache_') and f.endswith('.hex')])
-	    cached = currentimagebuild(c, cached, key)
-	    if cached:
-	      print 'cached loading from ',cached[0]
-	      c = c._replace(currentimg = cached[1])
-	    else:
-	      print 'failed to find matching cached file.  loading full image.'
+    if args.cached:
+      cached = set(reduce(lambda a,b: a+b, args.cached))
+      if not cached:
+        cached = set([f for f in os.listdir('.') if f.startswith('mrboot_cache_') and f.endswith('.hex')])
+      cached = currentimagebuild(c, cached, key)
+      if cached:
+        print 'cached loading from ',cached[0]
+        c = c._replace(currentimg = cached[1])
+      else:
+        print 'failed to find matching cached file.  loading full image.'
 
-	  if args.test_run:
-	    print 'test run, would normally program here.'
-	  else:
-	    print 'programming'
-	    bootload(c, progandsig)
+    if args.test_run:
+      print 'test run, would normally program here.'
+    else:
+      print 'programming'
+      bootload(c, progandsig)
 
   node.pumpout()
   d = node.doUntilReply(['S'], delay=.5, timeout=3)

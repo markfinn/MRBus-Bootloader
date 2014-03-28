@@ -116,90 +116,81 @@ def updatestatus(n, c, staticscrbuf=['']):
     scrbuf=scrbuf[:n]+new
   staticscrbuf[0] = scrbuf
 
-def writepage(c, pagenum, data, needStatusReset, image, prevdata=None):
   
-  def dountillreply(cmd, rep=None, to=5):
-    r = c.node.doUntilReply(cmd, rep, delay=.5, timeout=5)
-    if None == r:
-      print 'giving up'
-      sys.exit(1)
-    return r
-
-  def flashbuf():
-    dountillreply(['#', pagenum*c.pagesize, (pagenum*c.pagesize)>>8], rep=ord('$'))
+def dountillreply(cmd, rep=None, to=5):
+  r = c.node.doUntilReply(cmd, rep, delay=.5, timeout=to)
+  if None == r:
+    print 'giving up'
+    sys.exit(1)
+  return r
 
 
-  def senddata(n, data, prevdata, image):
 
+class Copyplan(object):
+  def __init__(self, p, d, c):
+    self.p=p
+    self.data=d
+    self.client=c
+
+  def loadpage(self, needStatusReset, image, prevdata):
+
+    if image and self.data == self.client.currentimg[self.p*self.client.pagesize: (self.p+1)*self.client.pagesize]:
+      updatestatus(self.p, '*')
+      return
+
+    z=self.data[0]
+    for x in self.data:
+      if x!=z:
+        break
+    else:
+      if z==0xff:
+        updatestatus(self.p, '-')
+      else:
+        updatestatus(self.p, 'f')
+      dountillreply(['F', z])
+      return
+
+    if (self.p+1)*self.client.pagesize<=self.client.bootstart-18:#can't copy to the sig or len.  bootloader will not allow it
+      for i in xrange(len(image)-len(self.data)+1):
+        if self.data == image[i:i+len(self.data)]:
+          updatestatus(self.p, 'c')
+          dountillreply(['F', i, i>>8, self.client.pagesize, 0])
+          return
+
+    if prevdata==self.data:
+      updatestatus(self.p, 'r')
+      return
 
     if needStatusReset:
       dountillreply(['F', 0])
-      prevdata=[0]*len(data)
+      prevdata=[0]*len(self.data)
         
-    updatestatus(n, 'd')
-    tosend=set(xrange((c.pagesize+11)//12))
+    updatestatus(self.p, 'd')
+    tosend=set(xrange((self.client.pagesize+11)//12))
     while tosend:
       i=tosend.pop()
       stat=1 if len(tosend)==0 else 0
-      d=[data[i*12+j] for j in xrange(12) if i*12+j < c.pagesize]
+      d=[self.data[i*12+j] for j in xrange(12) if i*12+j < self.client.pagesize]
       d+=[0]*(12-len(d))
-      c.node.sendpkt(['D']+d+[i, stat])
+      self.client.node.sendpkt(['D']+d+[i, stat])
       if stat:
-        d = c.node.gettypefilteredpktdata(ord('@'), duration=2)
+        d = self.client.node.gettypefilteredpktdata(ord('@'), duration=2)
         if d:
-          failed=set((d[0]*8+k for k in xrange(8) if d[0]*8+k < (c.pagesize+11)//12 and d[1]&(1<<k)==0))
+          failed=set((d[0]*8+k for k in xrange(8) if d[0]*8+k < (self.client.pagesize+11)//12 and d[1]&(1<<k)==0))
           tosend|=failed
           if failed:
             print 'failed, retry:', failed
         else:
           tosend|=set([i])
 
-  if image and data == c.currentimg[pagenum*c.pagesize: (pagenum+1)*c.pagesize]:
-    updatestatus(pagenum, '*')
-    return
-
-  z=data[0]
-  for x in data:
-    if x!=z:
-      break
-  else:
-    if z==0xff:
-      updatestatus(pagenum, '-')
-    else:
-      updatestatus(pagenum, 'f')
-    dountillreply(['F', z])
-    flashbuf()
-    return
-
-  if (pagenum+1)*c.pagesize<=c.bootstart-18:#can't copy to the sig or len.  bootloader will not allow it
-    for i in xrange(len(image)-len(data)+1):
-      if data == image[i:i+len(data)]:
-        updatestatus(pagenum, 'c')
-        dountillreply(['F', i, i>>8, c.pagesize, 0])
-        flashbuf()
-        return
-
-  if prevdata==data:
-    updatestatus(pagenum, 'r')
-    flashbuf()
-    return
-
-  senddata(pagenum, data, prevdata, image)
-  flashbuf()
-  return
 
 
-class Copyplan(object):
-  def __init__(self, p, d, c):
-    self.p=p
-    self.d=d
-    self.client=c
-  @property
-  def data(self):
-    return self.d
 
 def plansort(pages):
   pass
+
+
+
   
 def bootload(c, prog):
   sendbuffer=None
@@ -214,7 +205,9 @@ def bootload(c, prog):
       pages.append((p, Copyplan(p, data, c)))
   plansort(pages)
   for page,copyplan in pages:
-    writepage(c, page, copyplan.data, not StatusIsZero, image, sendbuffer)
+    copyplan.loadpage(not StatusIsZero, image, sendbuffer)
+    dountillreply(['#', page*c.pagesize, (page*c.pagesize)>>8], rep=ord('$'))
+
     sendbuffer=copyplan.data
     image[page*c.pagesize: (page+1)*c.pagesize]=copyplan.data
     StatusIsZero=True #writing a page zeros the status

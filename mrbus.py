@@ -16,7 +16,9 @@ class packet(object):
     return hash(repr(self))
 
   def __eq__(self, other):
-    return repr(self)==repr(other)
+    if type(other)==packet:
+      return repr(self)==repr(other)
+    return list(other)==[self.cmd]+self.data
 
   def __repr__(self):
     return "mrbus.packet(0x%02x, 0x%02x, 0x%02x, %s)"%(self.dest, self.src, self.cmd, repr(self.data))

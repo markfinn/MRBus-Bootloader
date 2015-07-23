@@ -139,7 +139,7 @@ SECTIONS
      _edata = . ;
      PROVIDE (__data_end = .) ;
   }  > data
-  .pageload	 0x7e8e : AT (0x7e8e) 
+  .pageload	 0x7e80 : AT (0x7e80) 
   {
     *(.text_pageload)
     KEEP(*(.text_pageload))
